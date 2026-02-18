@@ -24,6 +24,7 @@ export const wsArcjet = arcjetKey ?
             slidingWindow({ mode: arcjetMode, interval: '2s', max: 5 })
         ],
     }) : null;
+// export const wsArcjet = null;
 
 export function securityMiddleware() {
     return async (req, res, next) => {
