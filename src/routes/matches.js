@@ -1,9 +1,9 @@
 import { Router } from 'express';
-import {createMatchSchema, listMatchesQuerySchema} from "../validation/matches.js";
+import {createMatchSchema, listMatchesQuerySchema, matchIdParamSchema, updateScoreSchema, MATCH_STATUS} from "../validation/matches.js";
 import {matches} from "../db/schema.js";
 import {db} from "../db/db.js";
-import {getMatchStatus} from "../utils/match-status.js";
-import {desc} from "drizzle-orm";
+import {getMatchStatus, syncMatchStatus} from "../utils/match-status.js";
+import {desc, eq} from "drizzle-orm";
 
 export const matchRouter = Router();
 
@@ -65,14 +65,14 @@ matchRouter.patch('/:id/score', async (req, res) => {
     if (!paramsParsed.success) {
         return res
             .status(400)
-            .json({ error: 'Invalid match id', details: formatZodError(paramsParsed.error) });
+            .json({ error: 'Invalid match id', details: paramsParsed.error.issues });
     }
 
     const bodyParsed = updateScoreSchema.safeParse(req.body);
     if (!bodyParsed.success) {
         return res
             .status(400)
-            .json({ error: 'Invalid payload', details: formatZodError(bodyParsed.error) });
+            .json({ error: 'Invalid payload', details: bodyParsed.error.issues });
     }
 
     const matchId = paramsParsed.data.id;
@@ -123,5 +123,22 @@ matchRouter.patch('/:id/score', async (req, res) => {
         res.json({ data: updated });
     } catch (err) {
         res.status(500).json({ error: 'Failed to update score' });
+    }
+});
+
+matchRouter.delete('/:id', async (req, res) => {
+    const paramsParsed = matchIdParamSchema.safeParse(req.params);
+    if (!paramsParsed.success) {
+        return res.status(400).json({ error: 'Invalid match id', details: paramsParsed.error.issues });
+    }
+    const matchId = paramsParsed.data.id;
+    try {
+        const [deleted] = await db.delete(matches).where(eq(matches.id, matchId)).returning();
+        if (!deleted) {
+            return res.status(404).json({ error: 'Match not found' });
+        }
+        res.json({ data: deleted });
+    } catch (e) {
+        res.status(500).json({ error: 'Failed to delete match.' });
     }
 });
